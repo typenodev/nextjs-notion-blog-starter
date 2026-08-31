@@ -1,0 +1,11 @@
+[build]
+  command = "pnpm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# 本项目含 API routes（/og-image、/subscribe-convertkit），必须走 Next.js 插件
+# 不能纯静态导出
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
