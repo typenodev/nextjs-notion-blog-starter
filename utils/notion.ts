@@ -1,4 +1,5 @@
 import { Client } from '@notionhq/client';
+
 import slugify from 'slugify';
 
 export const notion = new Client({
@@ -24,7 +25,8 @@ const mapArticleProperties = article => {
 
   return {
     id: id,
-    title: properties?.title.title[0].plain_text || '',
+    // 修复：缺 title 时不再崩溃，回退为空字符串
+    title: properties?.title?.title?.[0]?.plain_text || '',
     categories:
       properties?.categories?.multi_select.map((category: any) => category.name) || [],
     thumbnail:
@@ -40,18 +42,21 @@ const mapArticleProperties = article => {
 export const convertToArticleList = (tableData: any) => {
   let categories: string[] = [];
 
-  const articles = tableData.map((article: any) => {
-    const { properties } = article;
+  // 修复：先过滤掉没有有效标题的脏行（如子页面/空标题行），再映射
+  const articles = tableData
+    .filter((article: any) => article?.properties?.title?.title?.[0]?.plain_text)
+    .map((article: any) => {
+      const { properties } = article;
 
-    properties?.categories?.multi_select?.forEach((category: any) => {
-      const { name } = category;
-      if (!categories.includes(name) && name) {
-        categories.push(name);
-      }
+      properties?.categories?.multi_select?.forEach((category: any) => {
+        const { name } = category;
+        if (!categories.includes(name) && name) {
+          categories.push(name);
+        }
+      });
+
+      return mapArticleProperties(article);
     });
-
-    return mapArticleProperties(article);
-  });
 
   return { articles, categories };
 };
@@ -87,9 +92,9 @@ export const getMoreArticlesToSuggest = async (databaseId, currentArticleTitle) 
 export const getArticlePage = (data, slug) => {
   const response = data.find(result => {
     if (result.object === 'page') {
-      const resultSlug = slugify(
-        result.properties.title.title[0].plain_text
-      ).toLowerCase();
+      // 修复：缺 title 时安全处理，避免 slugify(undefined) 崩溃
+      const plainText = result.properties?.title?.title?.[0]?.plain_text;
+      const resultSlug = plainText ? slugify(plainText).toLowerCase() : '';
       return resultSlug === slug;
     }
     return false;
@@ -114,9 +119,10 @@ export function shuffleArray(array: Array<any>) {
 
 export const getArticlePageData = async (page: any, slug: any, databaseId) => {
   let content = [];
-  let title = '';
 
-  title = page.properties.title.title[0].plain_text;
+  let title = '';
+  // 修复：缺 title 时安全回退为空字符串
+  title = page?.properties?.title?.title?.[0]?.plain_text || '';
 
   const moreArticles: any = await getMoreArticlesToSuggest(databaseId, title);
 
